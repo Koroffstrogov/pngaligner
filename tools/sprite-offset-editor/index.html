@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprite Offset Editor</title>
+  <style>
+    :root {
+      --bg: #171a1f;
+      --panel: #232834;
+      --panel-2: #2c3240;
+      --text: #ecf0f7;
+      --muted: #aab3c4;
+      --accent: #58a6ff;
+      --warn: #ffb347;
+      --danger: #ff7070;
+      --ok: #6edb8f;
+      --line: #3a4152;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 20px;
+      font-weight: 650;
+    }
+    .top, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .row + .row { margin-top: 8px; }
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
+    .group label { font-size: 12px; color: var(--muted); }
+    input[type="number"], input[type="text"], select {
+      background: #13161d;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 4px 6px;
+      width: 72px;
+    }
+    input[type="text"].wide { width: 180px; }
+    button, .file-label {
+      background: #2e3648;
+      color: var(--text);
+      border: 1px solid #4a5369;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button:hover, .file-label:hover { border-color: var(--accent); }
+    button:disabled { opacity: .55; cursor: default; }
+    .file-label input { display: none; }
+    .dropzone {
+      border: 1px dashed #5e6782;
+      border-radius: 8px;
+      padding: 6px 8px;
+      color: var(--muted);
+      min-width: 240px;
+    }
+    .dropzone.active {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(88, 166, 255, .08);
+    }
+    .info {
+      font-size: 12px;
+      color: var(--muted);
+      display: grid;
+      grid-template-columns: repeat(3, minmax(160px, 1fr));
+      gap: 4px 10px;
+      width: 100%;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 1200px) {
+      .layout { grid-template-columns: 1fr; }
+      .info { grid-template-columns: 1fr; }
+    }
+    .panel h2 { margin: 0 0 8px; font-size: 15px; }
+    .canvas-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: auto;
+      background:
+        linear-gradient(45deg, #1a1f29 25%, transparent 25%),
+        linear-gradient(-45deg, #1a1f29 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #1a1f29 75%),
+        linear-gradient(-45deg, transparent 75%, #1a1f29 75%);
+      background-size: 18px 18px;
+      background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+      min-height: 260px;
+    }
+    canvas { display: block; image-rendering: pixelated; }
+    .mini { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .status { margin-top: 6px; font-size: 12px; min-height: 1.2em; }
+    .status.warn { color: var(--warn); }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--ok); }
+    .help {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-top: 8px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+    .badge {
+      background: #13161d;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sprite Offset Editor</h1>
+
+  <div class="top">
+    <div class="row">
+      <label class="file-label">Charger PNG
+        <input id="pngInput" type="file" accept="image/png" />
+      </label>
+      <label class="file-label">Import offsets JSON
+        <input id="jsonInput" type="file" accept="application/json,.json" />
+      </label>
+      <button id="exportJsonBtn" disabled>Export offsets JSON</button>
+      <button id="copyJsonBtn" disabled>Copy JSON</button>
+      <button id="exportPngBtn" disabled>Export aligned PNG</button>
+      <div id="dropzone" class="dropzone">Déposez un PNG ou JSON ici</div>
+    </div>
+
+    <div class="row">
+      <div class="group"><label>cols</label><input id="colsInput" type="number" min="1" value="4" /></div>
+      <div class="group"><label>rows</label><input id="rowsInput" type="number" min="1" value="3" /></div>
+      <div class="group"><label>anchorX</label><input id="anchorXInput" type="number" value="0" /></div>
+      <div class="group"><label>anchorY</label><input id="anchorYInput" type="number" value="0" /></div>
+      <div class="group"><label>fps</label><input id="fpsInput" type="number" min="1" max="60" value="8" /></div>
+      <div class="group"><label>scale</label><input id="scaleInput" type="number" min="1" max="8" value="3" /></div>
+    </div>
+
+    <div class="row">
+      <div class="group"><label>Animation</label>
+        <select id="orderModeSelect">
+          <option value="row1">Row 1 (0,1,2,3)</option>
+          <option value="row2">Row 2 (4,5,6,7)</option>
+          <option value="row3">Row 3 (8,9,10,11)</option>
+          <option value="all">All frames</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="group"><label>Custom order</label><input id="customOrderInput" class="wide" type="text" value="0,1,2,3" /></div>
+      <button id="prevFrameBtn" disabled>◀ Frame</button>
+      <button id="nextFrameBtn" disabled>Frame ▶</button>
+      <button id="resetFrameBtn" disabled>Reset frame (R)</button>
+      <button id="resetAllBtn" disabled>Reset all</button>
+      <button id="applyRowBtn" disabled>Apply offset to row</button>
+      <button id="nudgeRowMinusBtn" disabled>Nudge row X/Y -1</button>
+      <button id="nudgeRowPlusBtn" disabled>Nudge row X/Y +1</button>
+      <button id="togglePlayBtn" disabled>Pause (Espace)</button>
+    </div>
+
+    <div class="row">
+      <label class="group"><input id="showGrid" type="checkbox" checked /> Show grid</label>
+      <label class="group"><input id="showAnchor" type="checkbox" checked /> Show anchor</label>
+      <label class="group"><input id="showIndex" type="checkbox" checked /> Show frame index</label>
+      <label class="group"><input id="showGhost" type="checkbox" checked /> Show original ghost</label>
+      <label class="group"><input id="showHitbox" type="checkbox" /> Show hitbox</label>
+      <span id="selectionBadge" class="badge">Frame: - | offsetX: 0 | offsetY: 0</span>
+    </div>
+
+    <div class="row info" id="metaInfo">
+      <div>Fichier: -</div>
+      <div>Image: -</div>
+      <div>Cellule: -</div>
+      <div>Frames: -</div>
+      <div>Cols/Rows: -</div>
+      <div>Ancre: -</div>
+    </div>
+    <div id="status" class="status"></div>
+  </div>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>Spritesheet</h2>
+      <div class="canvas-wrap"><canvas id="sheetCanvas" width="640" height="420"></canvas></div>
+      <div class="mini">Cliquez une cellule pour sélectionner une frame.</div>
+    </section>
+
+    <section class="panel">
+      <h2>Frame courante</h2>
+      <div class="row">
+        <div class="group"><label>Offset X</label><input id="offsetXInput" type="number" value="0" /></div>
+        <div class="group"><label>Offset Y</label><input id="offsetYInput" type="number" value="0" /></div>
+      </div>
+      <div class="canvas-wrap"><canvas id="frameCanvas" width="320" height="320"></canvas></div>
+      <div id="frameInfo" class="mini">Frame index: - | Offset X: 0 | Offset Y: 0</div>
+    </section>
+
+    <section class="panel">
+      <h2>Preview animation</h2>
+      <div class="canvas-wrap"><canvas id="previewCanvas" width="320" height="320"></canvas></div>
+      <div id="previewInfo" class="mini">Order: [0,1,2,3] | Frame: -</div>
+      <div class="help">
+        Flèches : déplacer la frame<br />
+        Shift + flèches : déplacement x5<br />
+        Espace : lecture / pause<br />
+        R : reset frame
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      const sheetCanvas = document.getElementById('sheetCanvas');
+      const frameCanvas = document.getElementById('frameCanvas');
+      const previewCanvas = document.getElementById('previewCanvas');
+      const sheetCtx = sheetCanvas.getContext('2d');
+      const frameCtx = frameCanvas.getContext('2d');
+      const previewCtx = previewCanvas.getContext('2d');
+      sheetCtx.imageSmoothingEnabled = false;
+      frameCtx.imageSmoothingEnabled = false;
+      previewCtx.imageSmoothingEnabled = false;
+
+      const pngInput = document.getElementById('pngInput');
+      const jsonInput = document.getElementById('jsonInput');
+      const dropzone = document.getElementById('dropzone');
+
+      const colsInput = document.getElementById('colsInput');
+      const rowsInput = document.getElementById('rowsInput');
+      const anchorXInput = document.getElementById('anchorXInput');
+      const anchorYInput = document.getElementById('anchorYInput');
+      const fpsInput = document.getElementById('fpsInput');
+      const scaleInput = document.getElementById('scaleInput');
+
+      const offsetXInput = document.getElementById('offsetXInput');
+      const offsetYInput = document.getElementById('offsetYInput');
+
+      const orderModeSelect = document.getElementById('orderModeSelect');
+      const customOrderInput = document.getElementById('customOrderInput');
+      const prevFrameBtn = document.getElementById('prevFrameBtn');
+      const nextFrameBtn = document.getElementById('nextFrameBtn');
+      const resetFrameBtn = document.getElementById('resetFrameBtn');
+      const resetAllBtn = document.getElementById('resetAllBtn');
+      const applyRowBtn = document.getElementById('applyRowBtn');
+      const nudgeRowMinusBtn = document.getElementById('nudgeRowMinusBtn');
+      const nudgeRowPlusBtn = document.getElementById('nudgeRowPlusBtn');
+      const togglePlayBtn = document.getElementById('togglePlayBtn');
+
+      const exportJsonBtn = document.getElementById('exportJsonBtn');
+      const copyJsonBtn = document.getElementById('copyJsonBtn');
+      const exportPngBtn = document.getElementById('exportPngBtn');
+
+      const showGrid = document.getElementById('showGrid');
+      const showAnchor = document.getElementById('showAnchor');
+      const showIndex = document.getElementById('showIndex');
+      const showGhost = document.getElementById('showGhost');
+      const showHitbox = document.getElementById('showHitbox');
+
+      const selectionBadge = document.getElementById('selectionBadge');
+      const frameInfo = document.getElementById('frameInfo');
+      const previewInfo = document.getElementById('previewInfo');
+      const metaInfo = document.getElementById('metaInfo');
+      const status = document.getElementById('status');
+
+      const AUTOSAVE_KEY = 'sprite-offset-editor:last-project';
+
+      const state = {
+        image: null,
+        sourceFileName: '',
+        imageWidth: 0,
+        imageHeight: 0,
+        cols: 4,
+        rows: 3,
+        cellWidth: 0,
+        cellHeight: 0,
+        anchorX: 0,
+        anchorY: 0,
+        fps: 8,
+        scale: 3,
+        frames: [],
+        selectedFrame: 0,
+        orderMode: 'row1',
+        customOrder: '0,1,2,3',
+        animationOrder: [0, 1, 2, 3],
+        isPlaying: true,
+        animCursor: 0,
+        lastTick: performance.now(),
+        hitboxes: []
+      };
+
+      function setStatus(message, type = 'ok') {
+        status.textContent = message || '';
+        status.className = `status ${type}`;
+      }
+
+      function safeInt(v, fallback = 0) {
+        const n = Number.parseInt(v, 10);
+        return Number.isFinite(n) ? n : fallback;
+      }
+
+      function baseName(name) {
+        return (name || 'sprite').replace(/\.png$/i, '');
+      }
+
+      function updateButtonsEnabled() {
+        const ready = Boolean(state.image);
+        [
+          exportJsonBtn, copyJsonBtn, exportPngBtn,
+          prevFrameBtn, nextFrameBtn, resetFrameBtn, resetAllBtn,
+          applyRowBtn, nudgeRowMinusBtn, nudgeRowPlusBtn, togglePlayBtn
+        ].forEach(btn => btn.disabled = !ready);
+      }
+
+      function rebuildFrames(preserveOffsets = true) {
+        const total = state.cols * state.rows;
+        const previous = preserveOffsets ? new Map(state.frames.map(f => [f.index, f])) : new Map();
+        state.frames = Array.from({ length: total }, (_, index) => {
+          const old = previous.get(index);
+          return { index, offsetX: old ? old.offsetX : 0, offsetY: old ? old.offsetY : 0 };
+        });
+        if (state.selectedFrame >= total) state.selectedFrame = Math.max(0, total - 1);
+      }
+
+      function recalcGrid() {
+        if (!state.image) return;
+        state.cellWidth = Math.floor(state.imageWidth / state.cols);
+        state.cellHeight = Math.floor(state.imageHeight / state.rows);
+        const remainderW = state.imageWidth % state.cols;
+        const remainderH = state.imageHeight % state.rows;
+        if (remainderW !== 0 || remainderH !== 0) {
+          setStatus('Attention: dimensions non divisibles par la grille, cellules tronquées.', 'warn');
+        }
+        if (!anchorXInput.dataset.userSet) state.anchorX = Math.floor(state.cellWidth / 2);
+        if (!anchorYInput.dataset.userSet) state.anchorY = Math.floor(state.cellHeight / 2);
+        anchorXInput.value = state.anchorX;
+        anchorYInput.value = state.anchorY;
+        rebuildFrames(true);
+        computeHitboxes();
+        refreshAll();
+      }
+
+      function frameCellPos(index) {
+        const col = index % state.cols;
+        const row = Math.floor(index / state.cols);
+        return { x: col * state.cellWidth, y: row * state.cellHeight, col, row };
+      }
+
+      function parseAnimationOrder() {
+        const total = state.cols * state.rows;
+        const rowFrames = row => {
+          const start = row * state.cols;
+          return Array.from({ length: state.cols }, (_, i) => start + i).filter(i => i < total);
+        };
+
+        let order;
+        switch (state.orderMode) {
+          case 'row1': order = rowFrames(0); break;
+          case 'row2': order = rowFrames(1); break;
+          case 'row3': order = rowFrames(2); break;
+          case 'all': order = Array.from({ length: total }, (_, i) => i); break;
+          case 'custom': {
+            order = state.customOrder
+              .split(',')
+              .map(s => safeInt(s.trim(), NaN))
+              .filter(n => Number.isFinite(n) && n >= 0 && n < total);
+            break;
+          }
+          default: order = rowFrames(0);
+        }
+
+        if (!order || order.length === 0) {
+          order = [0];
+          setStatus('Ordre d’animation invalide, fallback sur [0].', 'warn');
+        }
+
+        state.animationOrder = order;
+        if (state.animCursor >= order.length) state.animCursor = 0;
+      }
+
+      function getFrame(index) {
+        return state.frames[index] || { index, offsetX: 0, offsetY: 0 };
+      }
+
+      function setOffset(index, x, y) {
+        const frame = getFrame(index);
+        frame.offsetX = safeInt(x, 0);
+        frame.offsetY = safeInt(y, 0);
+        state.frames[index] = frame;
+        autosaveProject();
+      }
+
+      function clampSelected() {
+        const total = state.cols * state.rows;
+        if (total <= 0) state.selectedFrame = 0;
+        else state.selectedFrame = Math.min(Math.max(0, state.selectedFrame), total - 1);
+      }
+
+      function drawAnchorCross(ctx, x, y, size = 6, color = '#58a6ff') {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x - size, y);
+        ctx.lineTo(x + size, y);
+        ctx.moveTo(x, y - size);
+        ctx.lineTo(x, y + size);
+        ctx.stroke();
+      }
+
+      function drawSheet() {
+        const w = state.image ? state.imageWidth : 640;
+        const h = state.image ? state.imageHeight : 420;
+        if (sheetCanvas.width !== w) sheetCanvas.width = w;
+        if (sheetCanvas.height !== h) sheetCanvas.height = h;
+        sheetCtx.clearRect(0, 0, w, h);
+
+        if (!state.image) {
+          sheetCtx.fillStyle = '#9aa6c2';
+          sheetCtx.font = '14px sans-serif';
+          sheetCtx.fillText('Chargez un PNG pour commencer.', 12, 24);
+          return;
+        }
+
+        sheetCtx.drawImage(state.image, 0, 0);
+
+        if (showGrid.checked) {
+          sheetCtx.strokeStyle = 'rgba(255,255,255,.35)';
+          sheetCtx.lineWidth = 1;
+          for (let c = 0; c <= state.cols; c++) {
+            const x = c * state.cellWidth + 0.5;
+            sheetCtx.beginPath();
+            sheetCtx.moveTo(x, 0);
+            sheetCtx.lineTo(x, state.rows * state.cellHeight);
+            sheetCtx.stroke();
+          }
+          for (let r = 0; r <= state.rows; r++) {
+            const y = r * state.cellHeight + 0.5;
+            sheetCtx.beginPath();
+            sheetCtx.moveTo(0, y);
+            sheetCtx.lineTo(state.cols * state.cellWidth, y);
+            sheetCtx.stroke();
+          }
+        }
+
+        for (const frame of state.frames) {
+          const { x, y } = frameCellPos(frame.index);
+          const anchorPx = x + state.anchorX;
+          const anchorPy = y + state.anchorY;
+
+          if (showAnchor.checked) {
+            sheetCtx.strokeStyle = 'rgba(88,166,255,.45)';
+            sheetCtx.beginPath();
+            sheetCtx.moveTo(x, anchorPy + 0.5);
+            sheetCtx.lineTo(x + state.cellWidth, anchorPy + 0.5);
+            sheetCtx.moveTo(anchorPx + 0.5, y);
+            sheetCtx.lineTo(anchorPx + 0.5, y + state.cellHeight);
+            sheetCtx.stroke();
+            drawAnchorCross(sheetCtx, anchorPx + frame.offsetX, anchorPy + frame.offsetY, 4, 'rgba(88,166,255,.9)');
+            sheetCtx.strokeStyle = 'rgba(255,180,100,.75)';
+            sheetCtx.beginPath();
+            sheetCtx.moveTo(anchorPx, anchorPy);
+            sheetCtx.lineTo(anchorPx + frame.offsetX, anchorPy + frame.offsetY);
+            sheetCtx.stroke();
+          }
+
+          if (showIndex.checked) {
+            sheetCtx.fillStyle = 'rgba(10,12,16,.66)';
+            sheetCtx.fillRect(x + 3, y + 3, 28, 16);
+            sheetCtx.fillStyle = '#f0f5ff';
+            sheetCtx.font = '12px sans-serif';
+            sheetCtx.fillText(String(frame.index), x + 10, y + 15);
+          }
+
+          if (showHitbox.checked) {
+            const hb = state.hitboxes[frame.index];
+            if (hb) {
+              sheetCtx.strokeStyle = 'rgba(110,219,143,.95)';
+              sheetCtx.strokeRect(x + hb.x + frame.offsetX + .5, y + hb.y + frame.offsetY + .5, hb.w, hb.h);
+            }
+          }
+        }
+
+        const sel = frameCellPos(state.selectedFrame);
+        sheetCtx.strokeStyle = '#ffcf66';
+        sheetCtx.lineWidth = 2;
+        sheetCtx.strokeRect(sel.x + 1, sel.y + 1, state.cellWidth - 2, state.cellHeight - 2);
+      }
+
+      function drawCurrentFrame() {
+        const scale = Math.max(1, state.scale);
+        const w = Math.max(200, state.cellWidth * scale * 2);
+        const h = Math.max(200, state.cellHeight * scale * 2);
+        if (frameCanvas.width !== w) frameCanvas.width = w;
+        if (frameCanvas.height !== h) frameCanvas.height = h;
+        frameCtx.clearRect(0, 0, w, h);
+
+        if (!state.image) {
+          frameCtx.fillStyle = '#9aa6c2';
+          frameCtx.font = '14px sans-serif';
+          frameCtx.fillText('Aucune frame chargée.', 12, 24);
+          return;
+        }
+
+        clampSelected();
+        const frame = getFrame(state.selectedFrame);
+        const cell = frameCellPos(frame.index);
+        const centerX = Math.floor(w / 2);
+        const centerY = Math.floor(h / 2);
+        const baseX = centerX - state.anchorX * scale;
+        const baseY = centerY - state.anchorY * scale;
+
+        frameCtx.strokeStyle = 'rgba(255,255,255,.25)';
+        frameCtx.strokeRect(baseX + .5, baseY + .5, state.cellWidth * scale, state.cellHeight * scale);
+
+        if (showGhost.checked) {
+          frameCtx.globalAlpha = 0.34;
+          frameCtx.drawImage(
+            state.image,
+            cell.x, cell.y, state.cellWidth, state.cellHeight,
+            baseX, baseY, state.cellWidth * scale, state.cellHeight * scale
+          );
+          frameCtx.globalAlpha = 1;
+        }
+
+        frameCtx.drawImage(
+          state.image,
+          cell.x, cell.y, state.cellWidth, state.cellHeight,
+          baseX + frame.offsetX * scale,
+          baseY + frame.offsetY * scale,
+          state.cellWidth * scale,
+          state.cellHeight * scale
+        );
+
+        if (showAnchor.checked) {
+          frameCtx.strokeStyle = 'rgba(88,166,255,.55)';
+          frameCtx.beginPath();
+          frameCtx.moveTo(0, centerY + .5);
+          frameCtx.lineTo(w, centerY + .5);
+          frameCtx.moveTo(centerX + .5, 0);
+          frameCtx.lineTo(centerX + .5, h);
+          frameCtx.stroke();
+          drawAnchorCross(frameCtx, centerX, centerY, 8, '#58a6ff');
+        }
+
+        if (showHitbox.checked) {
+          const hb = state.hitboxes[frame.index];
+          if (hb) {
+            frameCtx.strokeStyle = 'rgba(110,219,143,.95)';
+            frameCtx.strokeRect(
+              baseX + (hb.x + frame.offsetX) * scale + .5,
+              baseY + (hb.y + frame.offsetY) * scale + .5,
+              hb.w * scale,
+              hb.h * scale
+            );
+          }
+        }
+      }
+
+      function drawPreview(timestamp) {
+        const dt = timestamp - state.lastTick;
+        const frameDuration = 1000 / Math.max(1, state.fps);
+        if (state.isPlaying && dt >= frameDuration) {
+          const jumps = Math.max(1, Math.floor(dt / frameDuration));
+          state.animCursor = (state.animCursor + jumps) % state.animationOrder.length;
+          state.lastTick = timestamp;
+        }
+
+        const w = previewCanvas.width;
+        const h = previewCanvas.height;
+        previewCtx.clearRect(0, 0, w, h);
+
+        previewCtx.strokeStyle = 'rgba(255,255,255,.12)';
+        for (let x = 0; x <= w; x += 16) {
+          previewCtx.beginPath();
+          previewCtx.moveTo(x + .5, 0);
+          previewCtx.lineTo(x + .5, h);
+          previewCtx.stroke();
+        }
+        for (let y = 0; y <= h; y += 16) {
+          previewCtx.beginPath();
+          previewCtx.moveTo(0, y + .5);
+          previewCtx.lineTo(w, y + .5);
+          previewCtx.stroke();
+        }
+
+        if (state.image && state.animationOrder.length > 0) {
+          const idx = state.animationOrder[state.animCursor % state.animationOrder.length];
+          const frame = getFrame(idx);
+          const cell = frameCellPos(idx);
+          const scale = Math.max(1, state.scale);
+          const centerX = Math.floor(w / 2);
+          const centerY = Math.floor(h / 2);
+          const baseX = centerX - state.anchorX * scale;
+          const baseY = centerY - state.anchorY * scale;
+
+          previewCtx.drawImage(
+            state.image,
+            cell.x, cell.y, state.cellWidth, state.cellHeight,
+            baseX + frame.offsetX * scale,
+            baseY + frame.offsetY * scale,
+            state.cellWidth * scale,
+            state.cellHeight * scale
+          );
+
+          if (showAnchor.checked) {
+            previewCtx.strokeStyle = 'rgba(88,166,255,.6)';
+            previewCtx.beginPath();
+            previewCtx.moveTo(centerX + .5, 0);
+            previewCtx.lineTo(centerX + .5, h);
+            previewCtx.moveTo(0, centerY + .5);
+            previewCtx.lineTo(w, centerY + .5);
+            previewCtx.stroke();
+            drawAnchorCross(previewCtx, centerX, centerY, 7, '#58a6ff');
+          }
+
+          previewInfo.textContent = `Order: [${state.animationOrder.join(',')}] | Frame: ${idx}`;
+        } else {
+          previewInfo.textContent = 'Order: [] | Frame: -';
+        }
+
+        requestAnimationFrame(drawPreview);
+      }
+
+      function updateMeta() {
+        const total = state.cols * state.rows;
+        const src = state.sourceFileName || '-';
+        const img = state.image ? `${state.imageWidth} x ${state.imageHeight}` : '-';
+        const cell = state.image ? `${state.cellWidth} x ${state.cellHeight}` : '-';
+        metaInfo.innerHTML = `
+          <div>Fichier: ${src}</div>
+          <div>Image: ${img}</div>
+          <div>Cellule: ${cell}</div>
+          <div>Frames: ${state.image ? total : '-'}</div>
+          <div>Cols/Rows: ${state.cols} / ${state.rows}</div>
+          <div>Ancre: ${state.anchorX}, ${state.anchorY}</div>
+        `;
+      }
+
+      function updateFrameUi() {
+        clampSelected();
+        const frame = getFrame(state.selectedFrame);
+        offsetXInput.value = frame.offsetX;
+        offsetYInput.value = frame.offsetY;
+        frameInfo.textContent = `Frame index: ${frame.index} | Offset X: ${frame.offsetX} | Offset Y: ${frame.offsetY}`;
+        selectionBadge.textContent = `Frame: ${frame.index} | offsetX: ${frame.offsetX} | offsetY: ${frame.offsetY}`;
+      }
+
+      function refreshAll() {
+        parseAnimationOrder();
+        updateButtonsEnabled();
+        updateMeta();
+        updateFrameUi();
+        drawSheet();
+        drawCurrentFrame();
+      }
+
+      function loadImageFile(file) {
+        if (!file || file.type !== 'image/png') {
+          setStatus('Veuillez charger un fichier PNG.', 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            state.image = img;
+            state.sourceFileName = file.name;
+            state.imageWidth = img.width;
+            state.imageHeight = img.height;
+            state.cols = Math.max(1, safeInt(colsInput.value, 4));
+            state.rows = Math.max(1, safeInt(rowsInput.value, 3));
+            state.fps = Math.max(1, safeInt(fpsInput.value, 8));
+            state.scale = Math.max(1, safeInt(scaleInput.value, 3));
+            recalcGrid();
+            setStatus(`PNG chargé: ${file.name}`, 'ok');
+            tryRestoreAutosave();
+          };
+          img.onerror = () => setStatus('Impossible de lire cette image.', 'error');
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function getProjectObject() {
+        return {
+          source: state.sourceFileName,
+          imageWidth: state.imageWidth,
+          imageHeight: state.imageHeight,
+          cols: state.cols,
+          rows: state.rows,
+          cellWidth: state.cellWidth,
+          cellHeight: state.cellHeight,
+          anchor: { x: state.anchorX, y: state.anchorY },
+          animationOrder: [...state.animationOrder],
+          frames: state.frames.map(f => ({ index: f.index, offsetX: f.offsetX, offsetY: f.offsetY }))
+        };
+      }
+
+      function autosaveProject() {
+        if (!state.image) return;
+        const save = {
+          ...getProjectObject(),
+          fps: state.fps,
+          scale: state.scale,
+          orderMode: state.orderMode,
+          customOrder: state.customOrder
+        };
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(save));
+      }
+
+      function tryRestoreAutosave() {
+        const raw = localStorage.getItem(AUTOSAVE_KEY);
+        if (!raw || !state.image) return;
+        try {
+          const data = JSON.parse(raw);
+          if (
+            data &&
+            data.source === state.sourceFileName &&
+            data.imageWidth === state.imageWidth &&
+            data.imageHeight === state.imageHeight
+          ) {
+            applyJsonData(data, true);
+            setStatus('Autosave restauré pour ce PNG.', 'ok');
+          }
+        } catch {
+          // ignore broken autosave
+        }
+      }
+
+      function exportJson() {
+        if (!state.image) return;
+        const json = JSON.stringify(getProjectObject(), null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${baseName(state.sourceFileName)}.offsets.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        setStatus('Offsets JSON exporté.', 'ok');
+      }
+
+      async function copyJson() {
+        if (!state.image) return;
+        const text = JSON.stringify(getProjectObject(), null, 2);
+        try {
+          await navigator.clipboard.writeText(text);
+          setStatus('JSON copié dans le presse-papiers.', 'ok');
+        } catch {
+          setStatus('Copie impossible (permissions navigateur).', 'warn');
+        }
+      }
+
+      function computeHitboxes() {
+        state.hitboxes = Array.from({ length: state.cols * state.rows }, () => null);
+        if (!state.image || state.cellWidth <= 0 || state.cellHeight <= 0) return;
+
+        const off = document.createElement('canvas');
+        off.width = state.cellWidth;
+        off.height = state.cellHeight;
+        const ctx = off.getContext('2d', { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = false;
+
+        for (let i = 0; i < state.frames.length; i++) {
+          const cell = frameCellPos(i);
+          ctx.clearRect(0, 0, off.width, off.height);
+          ctx.drawImage(state.image, cell.x, cell.y, state.cellWidth, state.cellHeight, 0, 0, state.cellWidth, state.cellHeight);
+          const { data } = ctx.getImageData(0, 0, state.cellWidth, state.cellHeight);
+
+          let minX = state.cellWidth, minY = state.cellHeight, maxX = -1, maxY = -1;
+          for (let y = 0; y < state.cellHeight; y++) {
+            for (let x = 0; x < state.cellWidth; x++) {
+              const a = data[(y * state.cellWidth + x) * 4 + 3];
+              if (a > 0) {
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+              }
+            }
+          }
+
+          if (maxX >= minX && maxY >= minY) {
+            state.hitboxes[i] = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+          }
+        }
+      }
+
+      function exportAlignedPng() {
+        if (!state.image) return;
+        const out = document.createElement('canvas');
+        out.width = state.imageWidth;
+        out.height = state.imageHeight;
+        const ctx = out.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        const clipped = [];
+
+        for (const frame of state.frames) {
+          const cell = frameCellPos(frame.index);
+          const dx = cell.x + frame.offsetX;
+          const dy = cell.y + frame.offsetY;
+          ctx.drawImage(
+            state.image,
+            cell.x, cell.y, state.cellWidth, state.cellHeight,
+            dx, dy, state.cellWidth, state.cellHeight
+          );
+
+          const hb = state.hitboxes[frame.index];
+          if (hb) {
+            const l = hb.x + frame.offsetX;
+            const t = hb.y + frame.offsetY;
+            const r = l + hb.w - 1;
+            const b = t + hb.h - 1;
+            if (l < 0 || t < 0 || r >= state.cellWidth || b >= state.cellHeight) {
+              clipped.push(frame.index);
+            }
+          }
+        }
+
+        out.toBlob(blob => {
+          if (!blob) {
+            setStatus('Échec export PNG.', 'error');
+            return;
+          }
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `${baseName(state.sourceFileName)}.aligned.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(a.href);
+
+          if (clipped.length > 0) {
+            setStatus(`PNG exporté avec warning clipping sur frame(s): ${[...new Set(clipped)].join(', ')}`, 'warn');
+          } else {
+            setStatus('PNG réaligné exporté.', 'ok');
+          }
+        }, 'image/png');
+      }
+
+      function applyJsonData(data, fromAutosave = false) {
+        if (!data || typeof data !== 'object') {
+          setStatus('JSON invalide.', 'error');
+          return;
+        }
+
+        const warning = [];
+        if (state.image) {
+          if (Number.isFinite(data.imageWidth) && data.imageWidth !== state.imageWidth) warning.push('imageWidth mismatch');
+          if (Number.isFinite(data.imageHeight) && data.imageHeight !== state.imageHeight) warning.push('imageHeight mismatch');
+        }
+
+        const newCols = Math.max(1, safeInt(data.cols ?? state.cols, state.cols));
+        const newRows = Math.max(1, safeInt(data.rows ?? state.rows, state.rows));
+
+        state.cols = newCols;
+        state.rows = newRows;
+        colsInput.value = state.cols;
+        rowsInput.value = state.rows;
+
+        if (state.image) {
+          state.cellWidth = Math.floor(state.imageWidth / state.cols);
+          state.cellHeight = Math.floor(state.imageHeight / state.rows);
+        }
+
+        const anchor = data.anchor || {};
+        state.anchorX = safeInt(anchor.x ?? state.anchorX, state.anchorX);
+        state.anchorY = safeInt(anchor.y ?? state.anchorY, state.anchorY);
+        anchorXInput.value = state.anchorX;
+        anchorYInput.value = state.anchorY;
+
+        if (Array.isArray(data.animationOrder) && data.animationOrder.length > 0) {
+          state.orderMode = 'custom';
+          orderModeSelect.value = 'custom';
+          state.customOrder = data.animationOrder.join(',');
+          customOrderInput.value = state.customOrder;
+        }
+
+        rebuildFrames(false);
+        const offsetsByIndex = new Map((data.frames || []).map(f => [safeInt(f.index, -1), f]));
+        state.frames = state.frames.map(f => {
+          const src = offsetsByIndex.get(f.index);
+          return {
+            index: f.index,
+            offsetX: src ? safeInt(src.offsetX, 0) : 0,
+            offsetY: src ? safeInt(src.offsetY, 0) : 0
+          };
+        });
+
+        computeHitboxes();
+        parseAnimationOrder();
+        refreshAll();
+        autosaveProject();
+
+        if (warning.length > 0) {
+          setStatus(`JSON importé avec avertissement: ${warning.join(', ')}`, 'warn');
+        } else if (!fromAutosave) {
+          setStatus('JSON importé.', 'ok');
+        }
+      }
+
+      function handleJsonFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(String(reader.result));
+            applyJsonData(data, false);
+          } catch {
+            setStatus('JSON invalide.', 'error');
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function selectFrame(index) {
+        state.selectedFrame = Math.min(Math.max(0, index), state.frames.length - 1);
+        refreshAll();
+      }
+
+      function adjustSelected(dx, dy) {
+        if (!state.image) return;
+        const frame = getFrame(state.selectedFrame);
+        setOffset(frame.index, frame.offsetX + dx, frame.offsetY + dy);
+        refreshAll();
+      }
+
+      function resetSelected() {
+        if (!state.image) return;
+        setOffset(state.selectedFrame, 0, 0);
+        refreshAll();
+      }
+
+      function resetAll() {
+        if (!state.image) return;
+        state.frames.forEach(f => { f.offsetX = 0; f.offsetY = 0; });
+        autosaveProject();
+        refreshAll();
+        setStatus('Tous les offsets ont été remis à zéro.', 'ok');
+      }
+
+      function applyOffsetToRow() {
+        if (!state.image) return;
+        const frame = getFrame(state.selectedFrame);
+        const row = Math.floor(frame.index / state.cols);
+        const start = row * state.cols;
+        const end = start + state.cols;
+        for (let i = start; i < end && i < state.frames.length; i++) {
+          state.frames[i].offsetX = frame.offsetX;
+          state.frames[i].offsetY = frame.offsetY;
+        }
+        autosaveProject();
+        refreshAll();
+        setStatus(`Offset appliqué à la ligne ${row + 1}.`, 'ok');
+      }
+
+      function nudgeRow(amount) {
+        if (!state.image) return;
+        const frame = getFrame(state.selectedFrame);
+        const row = Math.floor(frame.index / state.cols);
+        const start = row * state.cols;
+        const end = start + state.cols;
+        for (let i = start; i < end && i < state.frames.length; i++) {
+          state.frames[i].offsetX += amount;
+          state.frames[i].offsetY += amount;
+        }
+        autosaveProject();
+        refreshAll();
+        setStatus(`Nudge ${amount > 0 ? '+' : ''}${amount} appliqué à la ligne ${row + 1}.`, 'ok');
+      }
+
+      // Events
+      pngInput.addEventListener('change', e => loadImageFile(e.target.files?.[0]));
+      jsonInput.addEventListener('change', e => handleJsonFile(e.target.files?.[0]));
+
+      ;['dragenter', 'dragover'].forEach(evt => dropzone.addEventListener(evt, e => {
+        e.preventDefault();
+        dropzone.classList.add('active');
+      }));
+      ;['dragleave', 'drop'].forEach(evt => dropzone.addEventListener(evt, e => {
+        e.preventDefault();
+        if (evt === 'drop') dropzone.classList.remove('active');
+        else if (!dropzone.contains(e.relatedTarget)) dropzone.classList.remove('active');
+      }));
+      dropzone.addEventListener('drop', e => {
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) loadImageFile(file);
+        else if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) handleJsonFile(file);
+        else setStatus('Fichier non supporté.', 'warn');
+      });
+
+      colsInput.addEventListener('change', () => {
+        state.cols = Math.max(1, safeInt(colsInput.value, state.cols));
+        colsInput.value = state.cols;
+        if (state.image) {
+          recalcGrid();
+          autosaveProject();
+        }
+      });
+      rowsInput.addEventListener('change', () => {
+        state.rows = Math.max(1, safeInt(rowsInput.value, state.rows));
+        rowsInput.value = state.rows;
+        if (state.image) {
+          recalcGrid();
+          autosaveProject();
+        }
+      });
+      anchorXInput.addEventListener('change', () => {
+        anchorXInput.dataset.userSet = '1';
+        state.anchorX = safeInt(anchorXInput.value, state.anchorX);
+        autosaveProject();
+        refreshAll();
+      });
+      anchorYInput.addEventListener('change', () => {
+        anchorYInput.dataset.userSet = '1';
+        state.anchorY = safeInt(anchorYInput.value, state.anchorY);
+        autosaveProject();
+        refreshAll();
+      });
+      fpsInput.addEventListener('change', () => {
+        state.fps = Math.max(1, safeInt(fpsInput.value, 8));
+        fpsInput.value = state.fps;
+        autosaveProject();
+      });
+      scaleInput.addEventListener('change', () => {
+        state.scale = Math.max(1, safeInt(scaleInput.value, 3));
+        scaleInput.value = state.scale;
+        autosaveProject();
+        refreshAll();
+      });
+
+      offsetXInput.addEventListener('change', () => {
+        setOffset(state.selectedFrame, safeInt(offsetXInput.value, 0), safeInt(offsetYInput.value, 0));
+        refreshAll();
+      });
+      offsetYInput.addEventListener('change', () => {
+        setOffset(state.selectedFrame, safeInt(offsetXInput.value, 0), safeInt(offsetYInput.value, 0));
+        refreshAll();
+      });
+
+      orderModeSelect.addEventListener('change', () => {
+        state.orderMode = orderModeSelect.value;
+        parseAnimationOrder();
+        state.animCursor = 0;
+        autosaveProject();
+        refreshAll();
+      });
+      customOrderInput.addEventListener('change', () => {
+        state.customOrder = customOrderInput.value;
+        if (state.orderMode === 'custom') {
+          parseAnimationOrder();
+          state.animCursor = 0;
+          autosaveProject();
+          refreshAll();
+        }
+      });
+
+      prevFrameBtn.addEventListener('click', () => selectFrame(state.selectedFrame - 1));
+      nextFrameBtn.addEventListener('click', () => selectFrame(state.selectedFrame + 1));
+      resetFrameBtn.addEventListener('click', resetSelected);
+      resetAllBtn.addEventListener('click', resetAll);
+      applyRowBtn.addEventListener('click', applyOffsetToRow);
+      nudgeRowMinusBtn.addEventListener('click', () => nudgeRow(-1));
+      nudgeRowPlusBtn.addEventListener('click', () => nudgeRow(1));
+
+      togglePlayBtn.addEventListener('click', () => {
+        state.isPlaying = !state.isPlaying;
+        togglePlayBtn.textContent = state.isPlaying ? 'Pause (Espace)' : 'Play (Espace)';
+      });
+
+      exportJsonBtn.addEventListener('click', exportJson);
+      copyJsonBtn.addEventListener('click', copyJson);
+      exportPngBtn.addEventListener('click', exportAlignedPng);
+
+      [showGrid, showAnchor, showIndex, showGhost, showHitbox].forEach(input => {
+        input.addEventListener('change', refreshAll);
+      });
+
+      sheetCanvas.addEventListener('click', e => {
+        if (!state.image) return;
+        const rect = sheetCanvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) * (sheetCanvas.width / rect.width));
+        const y = Math.floor((e.clientY - rect.top) * (sheetCanvas.height / rect.height));
+        const col = Math.floor(x / state.cellWidth);
+        const row = Math.floor(y / state.cellHeight);
+        const index = row * state.cols + col;
+        if (index >= 0 && index < state.frames.length) {
+          selectFrame(index);
+        }
+      });
+
+      window.addEventListener('keydown', e => {
+        if (!state.image) return;
+        const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+        if (inField && e.key !== 'Escape') return;
+
+        const step = e.shiftKey ? 5 : 1;
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          adjustSelected(-step, 0);
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          adjustSelected(step, 0);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          adjustSelected(0, -step);
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          adjustSelected(0, step);
+        } else if (e.key.toLowerCase() === 'r') {
+          e.preventDefault();
+          resetSelected();
+        } else if (e.code === 'Space') {
+          e.preventDefault();
+          state.isPlaying = !state.isPlaying;
+          togglePlayBtn.textContent = state.isPlaying ? 'Pause (Espace)' : 'Play (Espace)';
+        }
+      });
+
+      // Init
+      anchorXInput.value = 0;
+      anchorYInput.value = 0;
+      updateButtonsEnabled();
+      refreshAll();
+      requestAnimationFrame(ts => {
+        state.lastTick = ts;
+        requestAnimationFrame(drawPreview);
+      });
+    })();
+  </script>
+</body>
+</html>
