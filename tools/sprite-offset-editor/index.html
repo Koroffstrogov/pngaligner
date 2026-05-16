@@ -543,8 +543,14 @@
           if (showHitbox.checked) {
             const hb = state.hitboxes[frame.index];
             if (hb) {
+              const metrics = getFrameDrawMetrics(frame.index);
               sheetCtx.strokeStyle = 'rgba(110,219,143,.95)';
-              sheetCtx.strokeRect(x + hb.x + frame.offsetX + .5, y + hb.y + frame.offsetY + .5, hb.w, hb.h);
+              sheetCtx.strokeRect(
+                x + metrics.dx + hb.x * metrics.zoom + .5,
+                y + metrics.dy + hb.y * metrics.zoom + .5,
+                hb.w * metrics.zoom,
+                hb.h * metrics.zoom
+              );
             }
           }
         }
