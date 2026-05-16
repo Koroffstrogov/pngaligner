@@ -154,6 +154,7 @@
       <button id="exportJsonBtn" disabled>Export offsets JSON</button>
       <button id="copyJsonBtn" disabled>Copy JSON</button>
       <button id="exportPngBtn" disabled>Export aligned PNG</button>
+      <label class="group"><input id="exportAlignedSuffix" type="checkbox" checked /> Suffixe -aligned</label>
       <div id="dropzone" class="dropzone">Déposez un PNG ou JSON ici</div>
     </div>
 
@@ -164,6 +165,8 @@
       <div class="group"><label>anchorY</label><input id="anchorYInput" type="number" value="0" /></div>
       <div class="group"><label>fps</label><input id="fpsInput" type="number" min="1" max="60" value="8" /></div>
       <div class="group"><label>scale</label><input id="scaleInput" type="number" min="1" max="8" value="3" /></div>
+      <div class="group"><label>hitbox zoom</label><input id="hitboxZoomInput" type="number" min="0.1" max="4" step="0.1" value="1" /></div>
+      <button id="applyHitboxZoomBtn" disabled>Apply hitbox zoom</button>
     </div>
 
     <div class="row">
@@ -259,6 +262,8 @@
       const anchorYInput = document.getElementById('anchorYInput');
       const fpsInput = document.getElementById('fpsInput');
       const scaleInput = document.getElementById('scaleInput');
+      const hitboxZoomInput = document.getElementById('hitboxZoomInput');
+      const applyHitboxZoomBtn = document.getElementById('applyHitboxZoomBtn');
 
       const offsetXInput = document.getElementById('offsetXInput');
       const offsetYInput = document.getElementById('offsetYInput');
@@ -277,6 +282,7 @@
       const exportJsonBtn = document.getElementById('exportJsonBtn');
       const copyJsonBtn = document.getElementById('copyJsonBtn');
       const exportPngBtn = document.getElementById('exportPngBtn');
+      const exportAlignedSuffix = document.getElementById('exportAlignedSuffix');
 
       const showGrid = document.getElementById('showGrid');
       const showAnchor = document.getElementById('showAnchor');
@@ -305,6 +311,7 @@
         anchorY: 0,
         fps: 8,
         scale: 3,
+        hitboxZoom: 1,
         frames: [],
         selectedFrame: 0,
         orderMode: 'row1',
@@ -326,6 +333,11 @@
         return Number.isFinite(n) ? n : fallback;
       }
 
+      function safeFloat(v, fallback = 0) {
+        const n = Number.parseFloat(v);
+        return Number.isFinite(n) ? n : fallback;
+      }
+
       function baseName(name) {
         return (name || 'sprite').replace(/\.png$/i, '');
       }
@@ -335,7 +347,7 @@
         [
           exportJsonBtn, copyJsonBtn, exportPngBtn,
           prevFrameBtn, nextFrameBtn, resetFrameBtn, resetAllBtn,
-          applyRowBtn, nudgeRowMinusBtn, nudgeRowPlusBtn, togglePlayBtn
+          applyRowBtn, nudgeRowMinusBtn, nudgeRowPlusBtn, togglePlayBtn, applyHitboxZoomBtn
         ].forEach(btn => btn.disabled = !ready);
       }
 
@@ -349,7 +361,7 @@
         if (state.selectedFrame >= total) state.selectedFrame = Math.max(0, total - 1);
       }
 
-      function recalcGrid() {
+      function recalcGrid(preserveOffsets = true) {
         if (!state.image) return;
         state.cellWidth = Math.floor(state.imageWidth / state.cols);
         state.cellHeight = Math.floor(state.imageHeight / state.rows);
@@ -362,7 +374,7 @@
         if (!anchorYInput.dataset.userSet) state.anchorY = Math.floor(state.cellHeight / 2);
         anchorXInput.value = state.anchorX;
         anchorYInput.value = state.anchorY;
-        rebuildFrames(true);
+        rebuildFrames(preserveOffsets);
         computeHitboxes();
         refreshAll();
       }
@@ -407,6 +419,36 @@
 
       function getFrame(index) {
         return state.frames[index] || { index, offsetX: 0, offsetY: 0 };
+      }
+
+      function getFrameHitbox(index) {
+        return state.hitboxes[index] || { x: 0, y: 0, w: state.cellWidth, h: state.cellHeight };
+      }
+
+      function getReferenceHitboxPivot() {
+        const refHb = getFrameHitbox(state.selectedFrame);
+        return {
+          x: refHb.x + refHb.w / 2,
+          y: refHb.y + refHb.h / 2
+        };
+      }
+
+      function getFrameDrawMetrics(index) {
+        const frame = getFrame(index);
+        const hb = getFrameHitbox(index);
+        const zoom = Math.max(0.1, state.hitboxZoom || 1);
+        const refPivot = getReferenceHitboxPivot();
+        const pivotX = refPivot.x;
+        const pivotY = refPivot.y;
+        return {
+          frame,
+          hb,
+          zoom,
+          dx: frame.offsetX + (1 - zoom) * pivotX,
+          dy: frame.offsetY + (1 - zoom) * pivotY,
+          dw: state.cellWidth * zoom,
+          dh: state.cellHeight * zoom
+        };
       }
 
       function setOffset(index, x, y) {
@@ -531,6 +573,7 @@
         clampSelected();
         const frame = getFrame(state.selectedFrame);
         const cell = frameCellPos(frame.index);
+        const metrics = getFrameDrawMetrics(frame.index);
         const centerX = Math.floor(w / 2);
         const centerY = Math.floor(h / 2);
         const baseX = centerX - state.anchorX * scale;
@@ -552,10 +595,10 @@
         frameCtx.drawImage(
           state.image,
           cell.x, cell.y, state.cellWidth, state.cellHeight,
-          baseX + frame.offsetX * scale,
-          baseY + frame.offsetY * scale,
-          state.cellWidth * scale,
-          state.cellHeight * scale
+          baseX + metrics.dx * scale,
+          baseY + metrics.dy * scale,
+          metrics.dw * scale,
+          metrics.dh * scale
         );
 
         if (showAnchor.checked) {
@@ -570,14 +613,14 @@
         }
 
         if (showHitbox.checked) {
-          const hb = state.hitboxes[frame.index];
+          const hb = metrics.hb;
           if (hb) {
             frameCtx.strokeStyle = 'rgba(110,219,143,.95)';
             frameCtx.strokeRect(
-              baseX + (hb.x + frame.offsetX) * scale + .5,
-              baseY + (hb.y + frame.offsetY) * scale + .5,
-              hb.w * scale,
-              hb.h * scale
+              baseX + (metrics.dx + hb.x * metrics.zoom) * scale + .5,
+              baseY + (metrics.dy + hb.y * metrics.zoom) * scale + .5,
+              hb.w * metrics.zoom * scale,
+              hb.h * metrics.zoom * scale
             );
           }
         }
@@ -614,6 +657,7 @@
           const idx = state.animationOrder[state.animCursor % state.animationOrder.length];
           const frame = getFrame(idx);
           const cell = frameCellPos(idx);
+          const metrics = getFrameDrawMetrics(idx);
           const scale = Math.max(1, state.scale);
           const centerX = Math.floor(w / 2);
           const centerY = Math.floor(h / 2);
@@ -623,10 +667,10 @@
           previewCtx.drawImage(
             state.image,
             cell.x, cell.y, state.cellWidth, state.cellHeight,
-            baseX + frame.offsetX * scale,
-            baseY + frame.offsetY * scale,
-            state.cellWidth * scale,
-            state.cellHeight * scale
+            baseX + metrics.dx * scale,
+            baseY + metrics.dy * scale,
+            metrics.dw * scale,
+            metrics.dh * scale
           );
 
           if (showAnchor.checked) {
@@ -681,6 +725,22 @@
         drawCurrentFrame();
       }
 
+      function resetAllEditorValues() {
+        state.frames = [];
+        state.hitboxes = [];
+        state.selectedFrame = 0;
+        state.animCursor = 0;
+        state.orderMode = 'row1';
+        state.customOrder = '0,1,2,3';
+        state.animationOrder = [0, 1, 2, 3];
+        state.isPlaying = true;
+        state.hitboxZoom = 1;
+        orderModeSelect.value = 'row1';
+        customOrderInput.value = '0,1,2,3';
+        hitboxZoomInput.value = '1';
+        togglePlayBtn.textContent = 'Pause (Espace)';
+      }
+
       function loadImageFile(file) {
         if (!file || file.type !== 'image/png') {
           setStatus('Veuillez charger un fichier PNG.', 'error');
@@ -690,6 +750,7 @@
         reader.onload = () => {
           const img = new Image();
           img.onload = () => {
+            resetAllEditorValues();
             state.image = img;
             state.sourceFileName = file.name;
             state.imageWidth = img.width;
@@ -698,9 +759,9 @@
             state.rows = Math.max(1, safeInt(rowsInput.value, 3));
             state.fps = Math.max(1, safeInt(fpsInput.value, 8));
             state.scale = Math.max(1, safeInt(scaleInput.value, 3));
-            recalcGrid();
-            setStatus(`PNG chargé: ${file.name}`, 'ok');
-            tryRestoreAutosave();
+            recalcGrid(false);
+            autosaveProject();
+            setStatus(`PNG chargé: ${file.name} (reset all appliqué).`, 'ok');
           };
           img.onerror = () => setStatus('Impossible de lire cette image.', 'error');
           img.src = reader.result;
@@ -718,6 +779,7 @@
           cellWidth: state.cellWidth,
           cellHeight: state.cellHeight,
           anchor: { x: state.anchorX, y: state.anchorY },
+          hitboxZoom: state.hitboxZoom,
           animationOrder: [...state.animationOrder],
           frames: state.frames.map(f => ({ index: f.index, offsetX: f.offsetX, offsetY: f.offsetY }))
         };
@@ -826,20 +888,21 @@
 
         for (const frame of state.frames) {
           const cell = frameCellPos(frame.index);
-          const dx = cell.x + frame.offsetX;
-          const dy = cell.y + frame.offsetY;
+          const metrics = getFrameDrawMetrics(frame.index);
+          const dx = cell.x + metrics.dx;
+          const dy = cell.y + metrics.dy;
           ctx.drawImage(
             state.image,
             cell.x, cell.y, state.cellWidth, state.cellHeight,
-            dx, dy, state.cellWidth, state.cellHeight
+            dx, dy, metrics.dw, metrics.dh
           );
 
-          const hb = state.hitboxes[frame.index];
+          const hb = metrics.hb;
           if (hb) {
-            const l = hb.x + frame.offsetX;
-            const t = hb.y + frame.offsetY;
-            const r = l + hb.w - 1;
-            const b = t + hb.h - 1;
+            const l = metrics.dx + hb.x * metrics.zoom;
+            const t = metrics.dy + hb.y * metrics.zoom;
+            const r = l + hb.w * metrics.zoom - 1;
+            const b = t + hb.h * metrics.zoom - 1;
             if (l < 0 || t < 0 || r >= state.cellWidth || b >= state.cellHeight) {
               clipped.push(frame.index);
             }
@@ -853,7 +916,8 @@
           }
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
-          a.download = `${baseName(state.sourceFileName)}.aligned.png`;
+          const suffix = exportAlignedSuffix.checked ? '-aligned' : '';
+          a.download = `${baseName(state.sourceFileName)}${suffix}.png`;
           document.body.appendChild(a);
           a.click();
           a.remove();
@@ -897,6 +961,8 @@
         state.anchorY = safeInt(anchor.y ?? state.anchorY, state.anchorY);
         anchorXInput.value = state.anchorX;
         anchorYInput.value = state.anchorY;
+        state.hitboxZoom = Math.max(0.1, safeFloat(data.hitboxZoom ?? state.hitboxZoom, state.hitboxZoom));
+        hitboxZoomInput.value = state.hitboxZoom;
 
         if (Array.isArray(data.animationOrder) && data.animationOrder.length > 0) {
           state.orderMode = 'custom';
@@ -998,6 +1064,15 @@
         setStatus(`Nudge ${amount > 0 ? '+' : ''}${amount} appliqué à la ligne ${row + 1}.`, 'ok');
       }
 
+      function applyHitboxZoom() {
+        if (!state.image) return;
+        state.hitboxZoom = Math.max(0.1, Math.min(4, safeFloat(hitboxZoomInput.value, 1)));
+        hitboxZoomInput.value = state.hitboxZoom;
+        autosaveProject();
+        refreshAll();
+        setStatus(`Hitbox zoom appliqué: x${state.hitboxZoom}.`, 'ok');
+      }
+
       // Events
       pngInput.addEventListener('change', e => loadImageFile(e.target.files?.[0]));
       jsonInput.addEventListener('change', e => handleJsonFile(e.target.files?.[0]));
@@ -1058,6 +1133,10 @@
         autosaveProject();
         refreshAll();
       });
+      hitboxZoomInput.addEventListener('change', () => {
+        state.hitboxZoom = Math.max(0.1, Math.min(4, safeFloat(hitboxZoomInput.value, 1)));
+        hitboxZoomInput.value = state.hitboxZoom;
+      });
 
       offsetXInput.addEventListener('change', () => {
         setOffset(state.selectedFrame, safeInt(offsetXInput.value, 0), safeInt(offsetYInput.value, 0));
@@ -1092,6 +1171,7 @@
       applyRowBtn.addEventListener('click', applyOffsetToRow);
       nudgeRowMinusBtn.addEventListener('click', () => nudgeRow(-1));
       nudgeRowPlusBtn.addEventListener('click', () => nudgeRow(1));
+      applyHitboxZoomBtn.addEventListener('click', applyHitboxZoom);
 
       togglePlayBtn.addEventListener('click', () => {
         state.isPlaying = !state.isPlaying;

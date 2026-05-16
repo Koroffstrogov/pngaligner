@@ -19,12 +19,14 @@ Outil local standalone pour corriger manuellement les offsets frame par frame d�
 ## Workflow conseillé
 
 1. Charger le PNG (`Charger PNG`) ou glisser-déposer.
+   - Le chargement PNG applique maintenant un **Reset all** automatique des offsets.
 2. Vérifier/ajuster `cols` et `rows` (4x3 par défaut).
 3. Choisir la ligne d’animation (`Row 1`, `Row 2`, `Row 3`, `All`, ou `Custom`).
 4. Lancer la preview (play/pause).
 5. Corriger frame par frame avec les flèches clavier.
-6. Exporter `*.offsets.json`.
-7. Exporter `*.aligned.png` si besoin.
+6. (Optionnel) Définir un `hitbox zoom` puis cliquer `Apply hitbox zoom` pour agrandir/réduire proportionnellement tous les sprites autour de leur hitbox.
+7. Exporter `*.offsets.json`.
+8. Exporter `*.png` (avec ou sans suffixe `-aligned` selon l’option) si besoin.
 
 ## Offsets
 
@@ -53,11 +55,11 @@ Utile pour recharger et itérer sans toucher au sprite source.
 
 ### Export aligned PNG
 
-Produit `nom-du-png.aligned.png` :
+Produit `nom-du-png-aligned.png` (ou `nom-du-png.png` si l’option de suffixe est décochée) :
 
 - dimensions identiques à l’original,
 - fond transparent conservé,
-- aucune mise à l’échelle,
+- mise à l’échelle optionnelle via `hitbox zoom`,
 - offsets appliqués cellule par cellule.
 
 Un warning est affiché si des pixels opaques risquent d’être coupés hors cellule après offset.
@@ -85,4 +87,4 @@ Si les dimensions du JSON ne correspondent pas au PNG chargé, un avertissement 
 - Apply same offset to row
 - Nudge selected row
 - Warning clipping potentiel
-- Autosave localStorage du dernier projet (restauré automatiquement si le même PNG est rechargé)
+- Autosave localStorage du dernier projet
